@@ -1,21 +1,30 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/mgodunow/auth-grpc/internal/app"
 	"github.com/mgodunow/auth-grpc/internal/config"
 )
 
 func main() {
 	config := config.MustLoad()
-	fmt.Println(*config)
-	//TODO: apps init
+
 	log := setupLogger(config.Env)
 	log.Info("Starting app")
 
-	//TODO: run grpc-server
+	application := app.New(log, config.GRPC.Port, config.StoragePath, config.TokenTTL)
+	go application.GRPCServer.MustRun()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+
+	<-stop
+
+	application.GRPCServer.Stop()
 }
 
 func setupLogger(env string) *slog.Logger {

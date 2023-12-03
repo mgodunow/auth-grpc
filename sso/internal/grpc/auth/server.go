@@ -2,7 +2,10 @@ package auth
 
 import (
 	"context"
+	"errors"
 
+	"github.com/mgodunow/auth-grpc/internal/services/auth"
+	"github.com/mgodunow/auth-grpc/internal/storage"
 	ssov1 "github.com/mgodunow/protos/gen/go/sso"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -10,7 +13,7 @@ import (
 )
 
 type Auth interface {
-	Login(ctx context.Context, email, password string, appId int) (string, error)
+	Login(ctx context.Context, email, password string, appId int64) (string, error)
 	Register(ctx context.Context, email, password string) (int64, error)
 	IsAdmin(ctx context.Context, userId int64) (bool, error)
 }
@@ -33,11 +36,14 @@ func (s *serverAPI) Login(ctx context.Context, request *ssov1.LoginRequest) (*ss
 	if err := validateLogin(request); err != nil {
 		return nil, err
 	}
-	token, err := s.auth.Login(ctx, request.GetEmail(), request.GetPassword(), int(request.GetAppId()))
+	token, err := s.auth.Login(ctx, request.GetEmail(), request.GetPassword(), int64(request.GetAppId()))
 	if err != nil {
+		if errors.Is(err, auth.ErrInvalidCredenitals) {
+			return nil, status.Error(codes.InvalidArgument, "invalid argument")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
-	return &ssov1.LoginResponse{Token: token,}, nil
+	return &ssov1.LoginResponse{Token: token}, nil
 }
 
 func validateLogin(request *ssov1.LoginRequest) error {
@@ -62,6 +68,9 @@ func (s *serverAPI) Register(ctx context.Context, request *ssov1.RegisterRequest
 
 	userId, err := s.auth.Register(ctx, request.GetEmail(), request.GetPassword())
 	if err != nil {
+		if errors.Is(err, storage.ErrUserExists) {
+			return nil, status.Error(codes.AlreadyExists, "user already exists")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 	return &ssov1.RegisterResponse{UserId: userId}, nil
@@ -85,6 +94,9 @@ func (s *serverAPI) IsAdmin(ctx context.Context, request *ssov1.IsAdminRequest) 
 	}
 	isAdmin, err := s.auth.IsAdmin(ctx, request.UserId)
 	if err != nil {
+		if errors.Is(err, storage.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 	return &ssov1.IsAdminResponse{IsAdmin: isAdmin}, nil

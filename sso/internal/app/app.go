@@ -5,6 +5,8 @@ import (
 	"time"
 
 	grpcapp "github.com/mgodunow/auth-grpc/internal/app/grpc"
+	"github.com/mgodunow/auth-grpc/internal/services/auth"
+	"github.com/mgodunow/auth-grpc/internal/storage/sqlite"
 )
 
 type App struct {
@@ -12,12 +14,14 @@ type App struct {
 }
 
 func New(log *slog.Logger, grpcPort string, storagePath string, tokenTTL time.Duration) *App {
+	storage, err := sqlite.New(storagePath)
+	if err != nil {
+		panic(err)
+	}
 
-	//TODO: storage init
+	authService := auth.New(log, storage, storage, storage, tokenTTL)
 
-	//TODO: init auth service
-
-	grpcApp := grpcapp.New(log, grpcPort)
+	grpcApp := grpcapp.New(log, grpcPort, authService)
 	return &App{
 		GRPCServer: grpcApp,
 	}

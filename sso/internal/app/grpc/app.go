@@ -15,10 +15,10 @@ type App struct {
 	port        string
 }
 
-func New(log *slog.Logger, port string) *App {
+func New(log *slog.Logger, port string, authService authgrpc.Auth) *App {
 	gRPCServer := grpc.NewServer()
 
-	authgrpc.RegisterServerAPI(gRPCServer)
+	authgrpc.RegisterServerAPI(gRPCServer, authService)
 
 	return &App{
 		log:         log,
@@ -37,7 +37,7 @@ func (a *App) Run() error {
 	const op = "grpcapp.Run"
 	log := a.log.With(slog.String("op", op), slog.String("port", a.port))
 
-	l, err := net.Listen("tcp", fmt.Sprintf(":%s", a.port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%s",a.port))
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
